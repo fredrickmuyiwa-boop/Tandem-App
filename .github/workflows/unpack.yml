@@ -1,0 +1,49 @@
+# Unpacks a .zip uploaded to the repository root, then deletes the zip.
+# Lets you upload the whole project as ONE file through the GitHub website.
+#
+# Note: GitHub does not let this workflow's token change files under
+# .github/workflows, so those are skipped when unpacking. Add any other
+# workflow (e.g. docs/github-ci.yml) by hand if you want it.
+name: Unpack uploaded zip
+
+on:
+  push:
+    paths: ['*.zip']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack zip files at the repo root
+        run: |
+          set -euo pipefail
+          shopt -s nullglob dotglob
+          zips=( *.zip )
+          if [ ${#zips[@]} -eq 0 ]; then echo "No zip at the repo root."; exit 0; fi
+          for z in "${zips[@]}"; do
+            echo "Unpacking $z"
+            tmp=$(mktemp -d)
+            unzip -q "$z" -d "$tmp"
+            rm -rf "$tmp/__MACOSX"
+            entries=( "$tmp"/* )
+            src="$tmp"
+            # A zip of a single folder unpacks that folder's contents to the root.
+            if [ ${#entries[@]} -eq 1 ] && [ -d "${entries[0]}" ]; then src="${entries[0]}"; fi
+            ( cd "$src" && tar --exclude='./.git' --exclude='./.github/workflows' --exclude='./node_modules' -cf - . ) | tar -xf -
+            rm -f "$z"
+          done
+
+      - name: Commit the unpacked files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then echo "Nothing to commit."; exit 0; fi
+          git commit -m "Unpack uploaded project zip"
+          git push
