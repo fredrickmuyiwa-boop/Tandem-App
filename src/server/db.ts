@@ -5,6 +5,17 @@ import type { Database } from '../domain/types';
 
 const KEY = 'tandem.db.v1';
 let db: Database | null = null;
+let persistEnabled = true;
+
+/** Live mode hooks: lets the Supabase replica capture every mutation (see remote/live.ts). */
+export interface WriteHook { before(): void; after(): void; abort(): void; outsideMutation(kind: 'audit', entry: unknown): void }
+let hook: WriteHook | null = null;
+let depth = 0;
+export function setWriteHook(h: WriteHook | null) { hook = h; }
+export const inMutation = () => depth > 0;
+export const writeHook = () => hook;
+/** Live mode keeps other people's data out of localStorage. */
+export function setPersistence(on: boolean) { persistEnabled = on; }
 let version = 0;
 const listeners = new Set<() => void>();
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
@@ -30,6 +41,7 @@ export function loadPersisted(): Database | null {
 }
 
 function persistNow() {
+  if (!persistEnabled) return;
   const s = storage();
   if (!s || !db) return;
   try {
@@ -57,7 +69,18 @@ export const isReady = () => db != null;
 /** Apply a mutation. Services mutate the draft in place; listeners are notified once. */
 export function mutate<T>(fn: (d: Database) => T): T {
   const d = getDb();
-  const out = fn(d);
+  if (hook) hook.before();
+  depth++;
+  let out: T;
+  try {
+    out = fn(d);
+  } catch (e) {
+    depth--;
+    if (hook) hook.abort();
+    throw e;
+  }
+  depth--;
+  if (hook) hook.after();
   version++;
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = setTimeout(persistNow, 60);

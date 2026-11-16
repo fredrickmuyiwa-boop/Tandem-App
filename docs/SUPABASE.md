@@ -1,52 +1,101 @@
-# Supabase (production backend)
+# Connecting Supabase (Live mode)
 
-`supabase/migrations/0001_init.sql` creates the full schema: 27 tables, two privacy-filtered views, the indexes, the integrity triggers and Row Level Security on every table. `supabase/tests/rls_test.sql` checks it with 59 assertions.
+Tandem runs in one of two modes:
 
-> The frontend still talks to the in-browser demo backend (`src/server`). Connecting it to Supabase is the main remaining engineering task (see below).
+| | Demo mode | Live mode |
+|---|---|---|
+| When | No Supabase keys set | `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` set |
+| Data | Fictional sample data in each visitor's browser | Your Supabase database, shared by all users |
+| Accounts | Built-in demo accounts | Real sign-up with email confirmation (Supabase Auth) |
+| Security | Checks in the app's backend layer | Postgres Row Level Security and integrity triggers |
 
-## Apply the schema
+## Setup (about 15 minutes)
 
-With the Supabase CLI:
+### 1. Create the database
 
-```bash
-supabase link --project-ref <ref>
-supabase db push                      # applies supabase/migrations/*
+1. In Supabase, open your project, then **SQL Editor → New query**.
+2. Open `supabase/setup.sql` from this repo, copy **all** of it, paste it in, and click **Run**. It should finish with "Success. No rows returned".
+3. *Optional:* to try discovery and matching before real creators join, run `supabase/seed/sample_creators.sql` the same way. It adds 46 **fictional** creator profiles. Each one is flagged `sample` and labelled "Sample" in the app, and none can receive invitations. You can remove them later with `delete from public.creator_profiles where sample and user_id is null;`
+
+### 2. Configure sign-in
+
+In **Authentication → URL Configuration**:
+
+- **Site URL:** your Vercel address, e.g. `https://tandem-app.vercel.app`
+- **Redirect URLs:** add `https://tandem-app.vercel.app/**` (and `http://localhost:5173/**` if you run it on your own computer)
+
+In **Authentication → Providers → Email**, leave **Confirm email** turned on.
+
+> Supabase's built-in email sender only allows a few emails per hour and is meant for testing. Before inviting real users, add your own SMTP provider under **Authentication → Emails → SMTP Settings** (Resend, Postmark, Brevo, Amazon SES and others work).
+
+### 3. Connect the website
+
+1. In Supabase, open **Project Settings → API Keys** (or **API** on older dashboards). Copy the **Project URL** and the **anon / publishable** key. That key is meant to be public, because Row Level Security protects the data.
+2. In Vercel, open **Project → Settings → Environment Variables** and add:
+   - `VITE_SUPABASE_URL` = the Project URL
+   - `VITE_SUPABASE_ANON_KEY` = the anon / publishable key
+3. Under **Deployments**, open the ⋯ menu on the latest deployment and choose **Redeploy**. Vite reads these variables at build time, so the redeploy is required.
+
+**Never** put the `service_role` / secret key into Vercel or anywhere in this app. Tandem doesn't need it.
+
+### 4. Make yourself the platform admin
+
+1. Open your site and sign up with your own email, then confirm it from the email you receive.
+2. In the Supabase SQL Editor, run (using your email):
+   ```sql
+   update public.profiles set platform_role = 'admin' where email = 'you@example.com';
+   ```
+3. Sign out and back in. You'll land in the admin area, which covers verification, moderation, the audit log and platform settings.
+
+Admin accounts are for running the platform. Use a different email for your own brand or creator account.
+
+## How it works
+
+```
+Browser                                   Supabase
+───────                                   ────────
+Supabase Auth (sign-up, sign-in,  ──────▶  auth.users ─(trigger)─▶ public.profiles
+  email confirmation, reset)
+
+app_snapshot()  ◀───────────────────────  every row RLS lets this user read,
+                                          plus privacy-filtered views of other
+   in-memory copy                         people's creators, campaigns, orgs
+   + the app's services
+   (validation, workflow rules)
+
+apply_changes([...])  ──────────────────▶  one transaction, run AS the user:
+  one batch per action                    RLS + integrity triggers decide;
+                                          any refusal rolls back the whole batch
 ```
 
-Or paste `0001_init.sql` into **SQL Editor** and run it.
+- **The database is the authority.** The browser runs the same business logic as Demo mode, but every write is checked again in Postgres. If the server refuses, the app reloads from the server and shows the reason.
+- **Privacy-filtered views.** `creator_directory`, `campaign_marketplace` and `org_directory` are how users see records they don't own. Hidden rates, audience and location are masked; budgets are never sent to creators; other people's user IDs are replaced with `claimed`.
+- **Server-side notifications.** The browser asks for "the brand's team" or "this creator" and the database works out who that is. It checks the sender actually has a relationship with them and applies each recipient's notification preferences.
+- **Rules the database enforces**, even against someone calling the API directly with a valid session:
+  - **Campaigns:** the status lifecycle is enforced, and commercial terms are frozen once a campaign is live.
+  - **Offers and collaborations:** offers can't be edited and only the receiving side can accept them. A collaboration must come from an accepted offer with identical terms.
+  - **Creators:** a creator can only move their own work into review, can't add payments (except the schedule created at acceptance, capped at the agreed fee and bonus), can't mark themselves verified, and can't label their numbers "verified".
+  - **Accounts and plans:** no one can change their own role or status, and plans can't be self-upgraded.
+  - **Audit log:** entries are append-only and always record the real caller.
+- **Freshness.** The app reloads its copy every 30 seconds and whenever the window regains focus.
 
-## Run the RLS tests
-
-On a local Supabase stack (`supabase start`):
+## Testing
 
 ```bash
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -v ON_ERROR_STOP=1 -f supabase/tests/rls_test.sql
+# Row Level Security and API checks (68 assertions), plain SQL
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/00_local_auth_stub.sql \
+  -f supabase/setup.sql -f supabase/tests/rls_test.sql
+
+# The app's real services in Live mode against Postgres (7 scenarios, including forged writes)
+LIVE_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres npm run test:live
 ```
 
-On plain Postgres 15+ (this is how they were run during development, on Postgres 16), load the small auth stub first:
+`00_local_auth_stub.sql` is only for plain Postgres. Supabase already has the `auth` schema.
 
-```bash
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
-  -f supabase/tests/00_local_auth_stub.sql \
-  -f supabase/migrations/0001_init.sql \
-  -f supabase/tests/rls_test.sql
-```
+## Limits to know about
 
-The test runs inside a transaction and rolls back, so it leaves no data behind.
-
-What's covered: anon access, tenant isolation, member/manager/owner limits, agency inheritance, the client reviewer's scope, creator isolation, the creator directory's privacy filter, the marketplace view not exposing budgets, self-verification and self-promotion being blocked, fake "verified" figures being blocked, the campaign lifecycle, frozen commercial terms, immutable offers, payment rules, the audit log being append-only, suspended users, and admin access.
-
-## Design notes
-
-- **`org_role(org)`, `has_perm(org, perm)` and `is_admin()`** are `SECURITY DEFINER` helpers with a pinned `search_path`. They implement the same matrix as `src/server/access.ts`. A suspended user or org gets no permissions.
-- **`creator_directory` and `campaign_marketplace`** are owner-rights views marked `security_barrier`. They are the only way other users read creators and campaigns, and they return only shareable columns. The Supabase linter will flag them as "security definer views"; that is intentional here. Keep their column lists reviewed.
-- **Notifications** are inserted by server code (service role), not by clients.
-- **Storage:** create a private bucket called `submissions` with a size limit and the MIME types from `files.mime_type`. Add storage policies that mirror `files_select` and `files_insert`.
-
-## Connecting the frontend (remaining work)
-
-1. `npm install @supabase/supabase-js` and create a client from `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-2. Replace `src/server/services/auth.ts` with Supabase Auth (sign up, sign in, email confirmation, reset, sign out). On sign-up, create the `profiles` row with a database trigger.
-3. Re-implement each service in `src/server/services/*` with the same function signatures, using Supabase queries. The pages call `api.*` only, so they don't need to change.
-4. Move multi-step writes into Postgres functions (RPC) so each runs in one transaction: accepting an offer (creates the collaboration, deliverables and payment schedule), reviewing a submission, and completing a collaboration.
-5. Send notification emails from a server job (a Supabase Edge Function or Vercel cron) using a provider such as Resend or Postmark. Until then, emails show as "queued".
+- **Scale:** each user loads everything they're allowed to see when they sign in. That's fine for pilots and small teams (thousands of rows). Before large organisations or a big creator directory, move the heaviest lists (discovery, audit log, notifications) to paged queries.
+- **Two people editing the same record at once:** the last save wins, per field. Critical steps (accepting offers, one open offer per conversation, one submission in review at a time) are protected by database constraints.
+- **Files:** images up to 1 MB are stored in the database so they can be previewed. Larger media should go to a private Supabase Storage bucket. Until that's added, creators share video by link.
+- **Not connected yet:** emails beyond Supabase Auth's own (invite and notification emails stay in-app), billing (plan changes go through an admin), Meta AI (needs `META_MODEL_API_KEY`), and social platform connections.
+- **Changing an existing database:** `setup.sql` is for a new, empty project. Later changes should be added as new numbered files in `supabase/migrations/`.

@@ -1,8 +1,7 @@
 // Client session: holds the token, exposes the signed-in user and active workspace.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, subscribe, getVersion, type Ctx } from '../server/api';
-
-const KEY = 'tandem.session';
+import { SESSION_KEY as KEY } from '../server/mode';
 const read = () => { try { return localStorage.getItem(KEY); } catch { return null; } };
 const write = (v: string | null) => { try { if (v) localStorage.setItem(KEY, v); else localStorage.removeItem(KEY); } catch { /* storage blocked: session lasts for this tab */ } };
 

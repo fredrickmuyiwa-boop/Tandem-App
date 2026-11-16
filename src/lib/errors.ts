@@ -1,4 +1,4 @@
-export type ErrorCode = 'unauthenticated' | 'forbidden' | 'not_found' | 'validation' | 'conflict' | 'rate_limited' | 'plan_limit' | 'suspended';
+export type ErrorCode = 'unauthenticated' | 'forbidden' | 'not_found' | 'validation' | 'conflict' | 'rate_limited' | 'plan_limit' | 'suspended' | 'network';
 
 export class AppError extends Error {
   code: ErrorCode;

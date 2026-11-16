@@ -1,18 +1,21 @@
 {
   "name": "tandem",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Tandem \u2014 AI-native operating system for creator and brand marketing.",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.api.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
-    "check": "tsc --noEmit && vitest run"
+    "check": "tsc --noEmit && vitest run",
+    "test:live": "vitest run -c vitest.live.config.ts",
+    "db:seed-files": "npx tsx scripts/gen-supabase-seed.ts"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

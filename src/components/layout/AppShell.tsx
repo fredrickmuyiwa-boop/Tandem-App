@@ -2,7 +2,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from 'react';
 import { Bell, ChevronsUpDown, LogOut, Menu as MenuIcon, Settings, X, Check, Building2, FlaskConical, HelpCircle } from 'lucide-react';
 import { useRouter } from '../../lib/router';
 import { useSession } from '../../app/session';
-import { storageWarning } from '../../server/api';
+import { storageWarning, IS_DEMO } from '../../server/api';
 import { cx } from '../../lib/utils';
 import Logo from './Logo';
 import { Avatar, Menu, MenuItem } from '../ui/misc';
@@ -72,10 +72,10 @@ export default function AppShell({ nav, children, home, kind }: { nav: NavItem[]
           </div>
         ))}
       </nav>
-      <div className="m-3 rounded-[11px] border border-dashed border-ink-300 p-3 text-[11.5px] leading-snug text-ink-500">
+      {IS_DEMO && <div className="m-3 rounded-[11px] border border-dashed border-ink-300 p-3 text-[11.5px] leading-snug text-ink-500">
         <p className="flex items-center gap-1.5 font-semibold text-ink-700"><FlaskConical className="size-3.5" /> Demo mode</p>
         <p className="mt-1">All creators, brands and figures are fictional. Nothing is sent or paid.</p>
-      </div>
+      </div>}
     </div>
   );
 

@@ -36,7 +36,7 @@ export default function Settings() {
     <div className="space-y-5">
       <PageHeader title="Platform settings" description="Changes apply immediately and are recorded in the audit log." />
       <Section title="Fees & limits">
-        <Notice className="mb-4">Fees are displayed in budgets for planning. Tandem doesn’t collect them in Demo mode — no billing provider is connected.</Notice>
+        <Notice className="mb-4">Fees are displayed in budgets for planning. Tandem doesn’t collect them — no billing provider is connected.</Notice>
         <div className="grid gap-3 sm:grid-cols-3">
           <Field label="Platform fee %"><Input type="number" min={0} max={30} step={0.5} value={fees.platformFeePct} onChange={(e) => setFees({ ...fees, platformFeePct: Number(e.target.value) })} /></Field>
           <Field label="Default agency fee %"><Input type="number" min={0} max={40} value={fees.defaultAgencyFeePct} onChange={(e) => setFees({ ...fees, defaultAgencyFeePct: Number(e.target.value) })} /></Field>

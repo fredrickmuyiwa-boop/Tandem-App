@@ -101,7 +101,7 @@ function rateCards(rand: () => number, followers: number, platforms: Platform[],
   });
 }
 
-function buildCreators(now: number): CreatorProfile[] {
+export function buildCreators(now: number): CreatorProfile[] {
   const rand = seeded(42);
   const iso = (d: number) => new Date(now - d * DAY).toISOString();
   const out: CreatorProfile[] = [];

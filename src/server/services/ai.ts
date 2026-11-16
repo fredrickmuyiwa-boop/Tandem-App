@@ -1,3 +1,5 @@
+import { LIVE } from '../mode';
+import { buildCreators } from '../../data/seed';
 import { getDb } from '../db';
 import { notFound } from '../errors';
 import { latency } from '../config';
@@ -86,10 +88,12 @@ export async function strategistContext(ctx: Ctx, orgId: string, campaignId?: st
  * Landing-page preview. Runs the real matching engine, but ONLY over fictional
  * sample profiles, and returns no rates or audience details.
  */
+let livePreviewPool: ReturnType<typeof toView>[] | null = null;
 export async function publicDemoMatch(criteria: BriefCriteria) {
   await latency();
-  const d = getDb();
-  const pool = d.creators.filter((c) => c.sample && c.visibility.listed).map((c) => toView(c));
+  // Live mode: visitors aren't signed in, so preview against the bundled fictional profiles.
+  if (LIVE && !livePreviewPool) livePreviewPool = buildCreators(Date.now()).filter((c) => c.sample && c.visibility.listed).map((c) => ({ ...toView(c), avatarUrl: undefined }));
+  const pool = LIVE ? livePreviewPool! : getDb().creators.filter((c) => c.sample && c.visibility.listed).map((c) => toView(c));
   return rankCreators(pool, criteria, { limit: 3 }).map((m) => {
     const c = pool.find((x) => x.id === m.creatorId)!;
     return { name: c.displayName, handle: c.handle, hue: c.avatarHue, country: c.country, categories: c.categories, score: m.score, confidence: m.confidence, reasons: m.reasons.slice(0, 2), concern: m.concerns[0] ?? null, role: m.suggestedRole.title };

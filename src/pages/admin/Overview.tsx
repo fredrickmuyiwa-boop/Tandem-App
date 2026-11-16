@@ -12,7 +12,7 @@ export default function Overview() {
   const o = q.data;
   return (
     <div className="space-y-5">
-      <PageHeader title="Platform overview" description="Counts from this environment’s data. In Demo mode these include seeded sample records." />
+      <PageHeader title="Platform overview" description="Counts from this environment’s data. Sample records are labelled and counted separately where shown." />
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Accounts" value={o.users} sub={`${o.byKind.brand} brand · ${o.byKind.agency} agency · ${o.byKind.creator} creator`} />
         <Stat label="Organisations" value={o.organizations} />

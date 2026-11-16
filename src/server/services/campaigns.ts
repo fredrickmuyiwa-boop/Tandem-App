@@ -9,7 +9,7 @@ import { assertValid, rules } from '../../lib/validate';
 import { cleanLine, cleanText } from '../../lib/sanitize';
 import { nowIso, uid } from '../../lib/utils';
 import { planFor } from './orgs';
-import { notify, orgRecipients } from '../notify';
+import { creatorUser, notify, orgRecipients } from '../notify';
 
 export type CampaignInput = Omit<Campaign, 'id' | 'orgId' | 'status' | 'createdBy' | 'createdAt' | 'updatedAt' | 'sample'>;
 
@@ -153,7 +153,7 @@ export async function transitionCampaign(ctx: Ctx, orgId: string, campaignId: st
       if (to === 'cancelled') db.payments.filter((p) => p.campaignId === c.id && p.status === 'scheduled').forEach((p) => { p.status = 'cancelled'; });
     }
     logActivity(db, { orgId, campaignId, actorId: user.id, actorName: user.name, action: `moved the campaign from ${CAMPAIGN_STATUS[from].label} to ${CAMPAIGN_STATUS[to].label}${reason ? ` — “${cleanLine(reason, 140)}”` : ''}` });
-    const creators = [...new Set(db.collaborations.filter((k) => k.campaignId === c.id).map((k) => db.creators.find((x) => x.id === k.creatorId)?.userId))];
+    const creators = [...new Set(db.collaborations.filter((k) => k.campaignId === c.id).map((k) => creatorUser(db, k.creatorId)))];
     if (['paused', 'cancelled', 'completed'].includes(to)) notify(db, creators, 'campaign', `${c.name} is now ${CAMPAIGN_STATUS[to].label.toLowerCase()}`, `The brand updated the campaign status.`, '/creator/dashboard');
     notify(db, orgRecipients(db, orgId, 'campaign.edit').filter((id) => id !== user.id), 'campaign', `${c.name}: ${CAMPAIGN_STATUS[to].label}`, `${user.name} changed the status.`, `/app/campaigns/${c.id}`);
     return c;

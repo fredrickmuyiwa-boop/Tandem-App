@@ -2,6 +2,7 @@ import type { Database, NotificationPrefs, NotificationType } from '../domain/ty
 import { NOTIFICATION_TYPES } from '../domain/constants';
 import { uid, nowIso } from '../lib/utils';
 import { roleCan, type Permission } from './access';
+import { LIVE } from './mode';
 
 export function defaultPrefs(userId: string): NotificationPrefs {
   const all = Object.fromEntries(NOTIFICATION_TYPES.map((t) => [t.id, true])) as Record<NotificationType, boolean>;
@@ -38,6 +39,8 @@ export function notify(d: Database, userIds: (string | undefined)[], type: Notif
 
 /** Users in an org (plus agency staff for client workspaces) holding a permission. */
 export function orgRecipients(d: Database, orgId: string, perm: Permission): string[] {
+  // Live mode: the server resolves the members (the browser may not see them all).
+  if (LIVE) return [`org:${orgId}:${perm}`];
   const org = d.organizations.find((o) => o.id === orgId);
   const ids = d.memberships.filter((m) => m.orgId === orgId && roleCan(m.role, perm)).map((m) => m.userId);
   if (org?.parentOrgId) ids.push(...d.memberships.filter((m) => m.orgId === org.parentOrgId && roleCan(m.role, perm)).map((m) => m.userId));
@@ -45,5 +48,14 @@ export function orgRecipients(d: Database, orgId: string, perm: Permission): str
 }
 
 export function creatorUser(d: Database, creatorId: string): string | undefined {
-  return d.creators.find((c) => c.id === creatorId)?.userId;
+  const c = d.creators.find((x) => x.id === creatorId);
+  if (!c?.userId) return undefined;
+  // Live mode hides other people's user ids; the server resolves "creator:<id>".
+  return LIVE && c.userId === 'claimed' ? `creator:${c.id}` : c.userId;
+}
+
+/** Platform administrators (resolved by the server in live mode). */
+export function adminRecipients(d: Database): string[] {
+  if (LIVE) return ['admins'];
+  return d.users.filter((u) => u.platformRole === 'admin').map((u) => u.id);
 }

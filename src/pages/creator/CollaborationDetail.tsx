@@ -73,7 +73,7 @@ export default function CollaborationDetail({ params }: { params: Record<string,
       <Modal open={!!target} onClose={close} size="lg" title={`Submit: ${targetDel?.title ?? ''}`} description="Upload drafts or link to them. The brand reviews before anything is published." footer={<><Button onClick={close}>Cancel</Button><Button variant="dark" loading={act.busy === 'sub'} onClick={submit}>Submit for review</Button></>}>
         <div className="space-y-4">
           <Field label="Caption / script" error={act.fields.caption}><Textarea value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={4000} error={act.fields.caption} /></Field>
-          <Field label="Files" hint="Images up to 1 MB preview inline in Demo mode; other files store their name and size only." error={act.fields.files}><FileDrop files={files} onChange={setFiles} onError={(m) => toast.error('File not added', m)} /></Field>
+          <Field label="Files" hint="Images up to 1 MB are previewed. For video, add a link (for example an unlisted upload) below." error={act.fields.files}><FileDrop files={files} onChange={setFiles} onError={(m) => toast.error('File not added', m)} /></Field>
           <Field label="Links (optional)" hint="Space-separated https links, e.g. an unlisted video or a drive folder." error={act.fields.links}><Input value={links} onChange={(e) => setLinks(e.target.value)} error={act.fields.links} /></Field>
           <Field label="Note to reviewer (optional)"><Textarea value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[60px]" /></Field>
         </div>

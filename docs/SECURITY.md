@@ -22,7 +22,15 @@ Authorisation lives in the backend, never in the UI. In Demo mode, every service
 - **Creator privacy.** Brands read creators through a filtered view (`CreatorView` in the demo, `creator_directory` in SQL). That view leaves out city, rates and audience unless the creator chose to share them, and never includes user IDs.
 - **Denials are logged.** Every permission denial writes a `permission.denied` audit event with severity `security`.
 
-## Authentication (demo backend)
+## Live mode (Supabase)
+
+- The browser holds only what RLS lets that user read. Other people's creators, campaigns and organisations come through privacy-filtered views: hidden fields are masked, budgets are never sent to creators, and other users' IDs are replaced with `claimed`.
+- Every change goes through `apply_changes()`, which runs **as the user** in a single transaction. RLS decides each row, triggers enforce the workflow rules, and a refusal anywhere rolls back the whole batch. A write that RLS filters out counts as a refusal rather than silently doing nothing.
+- The audit log and notifications have server-side writers. The audit actor is always the real caller, and notifications only reach people the sender has a working relationship with.
+- `supabase/tests/rls_test.sql` (68 checks) and `tests/live/workflow.live.ts` (forged writes made directly against the API) test these rules.
+- The browser uses only the public anon/publishable key. Tandem never uses the service-role key.
+
+## Authentication (Demo mode backend)
 
 - Passwords are hashed with PBKDF2-SHA256 (120,000 iterations, random salt, via WebCrypto). They must be at least 10 characters and include letters and numbers.
 - A wrong password and an unknown email produce the same message, and sign-up and password reset respond the same whether or not the email exists, so accounts can't be enumerated.
@@ -30,7 +38,7 @@ Authorisation lives in the backend, never in the UI. In Demo mode, every service
 - Sessions expire after 12 hours. Changing your password signs out your other sessions, and suspending an account revokes its sessions.
 - Users can export their data (JSON) and delete their account.
 
-In production, use Supabase Auth (email confirmation, password reset, optional MFA) instead of the demo auth service.
+In Live mode, Supabase Auth handles all of this: hashing, email confirmation, reset links, sessions, and rate limiting of sign-in attempts.
 
 ## Data integrity (enforced in SQL)
 

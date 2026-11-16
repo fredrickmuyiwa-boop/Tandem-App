@@ -10,7 +10,7 @@ import { cleanLine, cleanText, safeUrl } from '../../lib/sanitize';
 import { nowIso, uid } from '../../lib/utils';
 import { avgEngagement, minRate, totalFollowers } from '../../domain/creatorStats';
 import { INLINE_IMAGE_LIMIT, PLATFORMS } from '../../domain/constants';
-import { notify } from '../notify';
+import { adminRecipients, notify } from '../notify';
 
 /** What a brand or agency user is allowed to see about a creator. */
 export type CreatorView = Omit<CreatorProfile, 'userId' | 'rates' | 'audience' | 'city' | 'portfolio'> & {
@@ -307,7 +307,7 @@ export async function requestVerification(ctx: Ctx, evidence: string) {
   return mutate((db) => {
     creator.identityVerification = 'pending';
     db.verificationRequests.unshift({ id: uid('ver'), creatorId: creator.id, userId: user.id, evidence: text, status: 'pending', createdAt: nowIso() });
-    notify(db, db.users.filter((u) => u.platformRole === 'admin').map((u) => u.id), 'verification', 'New verification request', `${creator.displayName} (@${creator.handle}) asked to be verified.`, '/admin/verification');
+    notify(db, adminRecipients(db), 'verification', 'New verification request', `${creator.displayName} (@${creator.handle}) asked to be verified.`, '/admin/verification');
   });
 }
 

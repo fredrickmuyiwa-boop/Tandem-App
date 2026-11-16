@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, Check } from 'lucide-react';
-import { api } from '../../server/api';
+import { api, IS_DEMO } from '../../server/api';
 import { useOrg } from '../../app/session';
 import { useAction, useQuery } from '../../app/hooks';
 import { useRouter } from '../../lib/router';
@@ -71,7 +71,7 @@ function Plan() {
   const plans = api.orgs.publicPlans().filter((p) => p.audience === (org.type === 'agency' ? 'agency' : 'brand'));
   const can = roleCan(role, 'settings.manage');
   return (
-    <Section title="Plan & billing" description="Billing isn’t connected in Demo mode. Changing plan takes effect immediately and no payment is taken.">
+    <Section title="Plan & billing" description={IS_DEMO ? 'Billing isn’t connected in Demo mode. Changing plan takes effect immediately and no payment is taken.' : 'Online billing isn’t connected yet. To change plan, contact the Tandem team — no payment is taken in the app.'}>
       <div className="grid gap-3 md:grid-cols-3">
         {plans.map((p) => {
           const current = p.id === q.data!.org.planId;
@@ -80,7 +80,7 @@ function Plan() {
               <p className="text-[14px] font-semibold">{p.name}</p>
               <p className="num mt-1 text-[20px] font-semibold">{p.priceMonthly == null ? 'Custom' : money(p.priceMonthly, p.currency)}<span className="text-[12px] font-normal text-ink-500">{p.priceMonthly ? ' / month' : ''}</span></p>
               <ul className="mt-3 space-y-1">{p.features.slice(0, 5).map((f) => <li key={f} className="flex gap-1.5 text-[12.5px] text-ink-600"><Check className="mt-0.5 size-3.5 shrink-0 text-ok-600" />{f}</li>)}</ul>
-              <Button className="mt-4 w-full" size="sm" variant={current ? 'soft' : 'secondary'} disabled={current || !can || p.priceMonthly == null} loading={act.busy === p.id} onClick={() => act.run(p.id, () => api.orgs.changePlan(ctx, orgId, p.id), { title: `Switched to ${p.name}`, body: 'Demo: no charge was made.' })}>{current ? 'Current plan' : p.priceMonthly == null ? 'Contact sales' : 'Switch'}</Button>
+              <Button className="mt-4 w-full" size="sm" variant={current ? 'soft' : 'secondary'} disabled={current || !can || p.priceMonthly == null || !IS_DEMO} loading={act.busy === p.id} onClick={() => act.run(p.id, () => api.orgs.changePlan(ctx, orgId, p.id), { title: `Switched to ${p.name}`, body: 'Demo: no charge was made.' })}>{current ? 'Current plan' : p.priceMonthly == null || !IS_DEMO ? 'Contact us' : 'Switch'}</Button>
             </div>
           );
         })}

@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { RouterProvider, matchPath, useRouter } from './lib/router';
 import { ToastProvider } from './components/ui/Toast';
 import { SessionProvider, useSession } from './app/session';
-import { initBackend, api, resetDemo } from './server/api';
+import { initBackend, api, resetDemo, IS_DEMO } from './server/api';
 import { adminNav, creatorNav, homeFor, orgNav, type PageComponent } from './app/routes';
 import AppShell from './components/layout/AppShell';
 import PublicLayout from './components/layout/PublicLayout';
@@ -190,7 +190,7 @@ function Boot({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { initBackend().then(() => setReady(true), (e: Error) => setError(e.message)); }, []);
   if (error) return <div className="grid min-h-screen place-items-center p-6 text-center"><div><p className="font-semibold">Tandem couldn’t start</p><p className="mt-1 text-[13px] text-ink-500">{error}</p></div></div>;
-  if (!ready) return <div className="grid min-h-screen place-items-center" aria-busy="true"><div className="flex flex-col items-center gap-3 animate-in"><Logo /><p className="text-[12.5px] text-ink-500">Preparing your demo workspace…</p></div></div>;
+  if (!ready) return <div className="grid min-h-screen place-items-center" aria-busy="true"><div className="flex flex-col items-center gap-3 animate-in"><Logo /><p className="text-[12.5px] text-ink-500">{IS_DEMO ? 'Preparing your demo workspace…' : 'Loading…'}</p></div></div>;
   return <>{children}</>;
 }
 

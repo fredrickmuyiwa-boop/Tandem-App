@@ -90,7 +90,7 @@ export async function sendInvitation(ctx: Ctx, orgId: string, campaignId: string
     db.messages.push({ id: uid('msg'), campaignId, orgId, creatorId, from: 'org', senderId: user.id, senderName: `${user.name} · ${org.name}`, body: message, kind: 'message', createdAt: nowIso() });
     upsertCrm(db, orgId, creatorId, 'contacted');
     logActivity(db, { orgId, campaignId, creatorId, actorId: user.id, actorName: user.name, action: `invited ${creator.displayName} with an offer of ${money(terms.fee, terms.currency)}` });
-    notify(db, [creator.userId], 'invitation', `${org.name} invited you to “${campaign.name}”`, `Offer: ${money(terms.fee, terms.currency)}${terms.bonus ? ` + ${money(terms.bonus.amount, terms.currency)} bonus` : ''}.`, `/creator/deals/${campaignId}`);
+    notify(db, [creatorUser(db, creator.id)], 'invitation', `${org.name} invited you to “${campaign.name}”`, `Offer: ${money(terms.fee, terms.currency)}${terms.bonus ? ` + ${money(terms.bonus.amount, terms.currency)} bonus` : ''}.`, `/creator/deals/${campaignId}`);
     audit({ actorId: user.id, actorEmail: user.email, orgId, action: 'outreach.invitation_sent', target: creator.handle, severity: 'info' });
     return inv;
   });
@@ -161,10 +161,10 @@ export async function reviewApplication(ctx: Ctx, orgId: string, applicationId: 
     logActivity(db, { orgId, campaignId: app.campaignId, creatorId: app.creatorId, actorId: user.id, actorName: user.name, action: `${decision === 'shortlisted' ? 'shortlisted' : 'declined'} ${creator.displayName}’s application` });
     if (decision === 'rejected') {
       addSystemMessage(db, app, `The brand decided not to move forward${note ? `: “${cleanLine(note, 200)}”` : '.'}`);
-      notify(db, [creator.userId], 'application', `Update on “${campaign.name}”`, 'The brand decided not to move forward with your application this time.', `/creator/deals/${campaign.id}`);
+      notify(db, [creatorUser(db, creator.id)], 'application', `Update on “${campaign.name}”`, 'The brand decided not to move forward with your application this time.', `/creator/deals/${campaign.id}`);
     } else {
       upsertCrm(db, orgId, app.creatorId, 'contacted');
-      notify(db, [creator.userId], 'application', `You were shortlisted for “${campaign.name}”`, 'The brand may send you an offer soon.', `/creator/deals/${campaign.id}`);
+      notify(db, [creatorUser(db, creator.id)], 'application', `You were shortlisted for “${campaign.name}”`, 'The brand may send you an offer soon.', `/creator/deals/${campaign.id}`);
     }
   });
 }
@@ -193,7 +193,7 @@ export async function makeOffer(ctx: Ctx, orgId: string, campaignId: string, cre
     if (offer.message) db.messages.push({ id: uid('msg'), campaignId, orgId, creatorId, from: 'org', senderId: user.id, senderName: `${user.name} · ${org.name}`, body: offer.message, kind: 'message', createdAt: nowIso() });
     upsertCrm(db, orgId, creatorId, 'negotiating');
     logActivity(db, { orgId, campaignId, creatorId, actorId: user.id, actorName: user.name, action: `sent ${creator.displayName} an offer of ${money(terms.fee, terms.currency)}` });
-    notify(db, [creator.userId], 'offer', `New offer for “${campaign.name}”`, `${org.name} offered ${money(terms.fee, terms.currency)}${terms.bonus ? ` + ${money(terms.bonus.amount, terms.currency)} bonus` : ''}.`, `/creator/deals/${campaignId}`);
+    notify(db, [creatorUser(db, creator.id)], 'offer', `New offer for “${campaign.name}”`, `${org.name} offered ${money(terms.fee, terms.currency)}${terms.bonus ? ` + ${money(terms.bonus.amount, terms.currency)} bonus` : ''}.`, `/creator/deals/${campaignId}`);
     return offer;
   });
 }
@@ -265,12 +265,12 @@ export async function orgRespond(ctx: Ctx, orgId: string, offerId: string, actio
     offer.respondedAt = nowIso();
     if (action === 'accept') {
       const collab = createCollaboration(db, offer, { id: user.id, name: user.name });
-      notify(db, [creator.userId], 'collaboration', `${campaign.name}: your counteroffer was accepted`, 'Your collaboration workspace is ready.', `/creator/collaborations/${collab.id}`);
+      notify(db, [creatorUser(db, creator.id)], 'collaboration', `${campaign.name}: your counteroffer was accepted`, 'Your collaboration workspace is ready.', `/creator/collaborations/${collab.id}`);
       return { collaborationId: collab.id };
     }
     addSystemMessage(db, offer, `The brand declined the counteroffer${message ? `: “${cleanLine(message, 200)}”` : '.'}`);
     logActivity(db, { orgId, campaignId: offer.campaignId, creatorId: offer.creatorId, actorId: user.id, actorName: user.name, action: 'declined the counteroffer' });
-    notify(db, [creator.userId], 'offer', `Counteroffer declined for “${campaign.name}”`, message ? cleanLine(message, 200) : 'The brand may send a new offer.', `/creator/deals/${campaign.id}`);
+    notify(db, [creatorUser(db, creator.id)], 'offer', `Counteroffer declined for “${campaign.name}”`, message ? cleanLine(message, 200) : 'The brand may send a new offer.', `/creator/deals/${campaign.id}`);
     return {};
   });
 }

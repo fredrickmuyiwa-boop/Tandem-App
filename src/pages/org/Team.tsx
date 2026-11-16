@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { UserPlus, Trash2 } from 'lucide-react';
-import { api } from '../../server/api';
+import { api, IS_DEMO } from '../../server/api';
 import { useOrg } from '../../app/session';
 import { useAction, useQuery } from '../../app/hooks';
 import { ROLE_META } from '../../domain/constants';
@@ -32,7 +32,7 @@ export default function Team() {
             <Field label="Role"><Select options={roles} labels={Object.fromEntries(roles.map((r) => [r, ROLE_META[r].label]))} value={role} onChange={(e) => setRole(e.target.value as OrgRole)} /></Field>
             <Button type="submit" variant="dark" icon={UserPlus} loading={act.busy === 'inv'}>Invite</Button>
           </form>
-          <p className="mt-2 text-[12px] text-ink-500">{ROLE_META[role].description} Existing Tandem users are added straight away; others get a pending invite (no email is sent in Demo mode).</p>
+          <p className="mt-2 text-[12px] text-ink-500">{ROLE_META[role].description} Existing Tandem users are added straight away; others join automatically when they sign up with that email{IS_DEMO ? ' (no email is sent in Demo mode)' : ' — send them the sign-up link yourself, as invite emails aren’t connected yet'}.</p>
         </Section>
       )}
       <Section title={`Members (${q.data.members.length})`}>

@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { ArrowRight, Sparkles, ShieldCheck, Scale, Handshake, FileCheck2, Wallet, BarChart3, Compass, Users, Building2, Camera } from 'lucide-react';
 import { useRouter } from '../../lib/router';
-import { api } from '../../server/api';
+import { api, IS_DEMO } from '../../server/api';
 import { interpretBrief, AI_PROVIDER_LABEL } from '../../ai/provider';
 import type { Interpretation } from '../../ai/brief';
 import { categoryLabel, OBJECTIVES, platformLabel } from '../../domain/constants';
@@ -94,9 +94,9 @@ export default function Landing() {
           <p className="mt-5 max-w-lg text-[16px] leading-relaxed text-ink-600">Tandem connects brands, agencies and creators in one workspace — from the first brief to approved content and recorded results. Less spreadsheet work, fewer lost DMs, and AI recommendations that explain themselves.</p>
           <div className="mt-7 flex flex-wrap gap-2.5">
             <Button variant="dark" size="lg" onClick={() => navigate('/signup')} iconRight={ArrowRight}>Create a free account</Button>
-            <Button size="lg" onClick={() => navigate('/signin')}>Explore the demo</Button>
+            <Button size="lg" onClick={() => navigate('/signin')}>{IS_DEMO ? 'Explore the demo' : 'Sign in'}</Button>
           </div>
-          <p className="mt-4 text-[12.5px] text-ink-500">The demo opens with fictional brands, creators and figures. Nothing is sent or paid.</p>
+          {IS_DEMO && <p className="mt-4 text-[12.5px] text-ink-500">The demo opens with fictional brands, creators and figures. Nothing is sent or paid.</p>}
         </div>
         <BriefDemo />
       </section>

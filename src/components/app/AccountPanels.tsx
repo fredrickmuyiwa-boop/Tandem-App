@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { KeyRound, LogOut, Download, Trash2, RotateCcw, MonitorSmartphone, ShieldCheck } from 'lucide-react';
-import { api, resetDemo } from '../../server/api';
+import { api, resetDemo, IS_DEMO } from '../../server/api';
 import { useSession } from '../../app/session';
 import { useAction, useQuery } from '../../app/hooks';
 import { NOTIFICATION_TYPES } from '../../domain/constants';
@@ -53,11 +53,11 @@ export function SecurityPanel() {
         </form>
       </Section>
       <Section title="Two-step verification" action={<ShieldCheck className="size-4 text-ink-400" />}>
-        <p className="text-[13px] text-ink-600">{me?.user.mfaEnabled ? 'On.' : 'Off.'} Multi-factor authentication is provided by Supabase Auth in production and isn’t available in Demo mode.</p>
+        <p className="text-[13px] text-ink-600">{me?.user.mfaEnabled ? 'On.' : 'Off.'} {IS_DEMO ? 'Multi-factor authentication is provided by Supabase Auth in production and isn’t available in Demo mode.' : 'Multi-factor authentication isn’t switched on for this workspace yet.'}</p>
       </Section>
-      <Section title="Active sessions" action={<MonitorSmartphone className="size-4 text-ink-400" />} description="Sessions expire after 12 hours.">
+      <Section title="Active sessions" action={<MonitorSmartphone className="size-4 text-ink-400" />} description={IS_DEMO ? 'Sessions expire after 12 hours.' : 'Other devices can’t be listed here, but you can sign them all out.'}>
         <ul className="divide-y divide-ink-150">{(sessions.data ?? []).map((s, i) => <li key={i} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-[13px]"><span><span className="font-medium">{s.userAgent.slice(0, 60)}</span>{s.current && <span className="ml-2 rounded-md bg-ok-50 px-1.5 py-0.5 text-[11px] font-medium text-ok-600">This device</span>}</span><span className="text-[12px] text-ink-500">Started {formatDateTime(s.createdAt)} · expires {formatDateTime(s.expiresAt)}</span></li>)}</ul>
-        <Button className="mt-3" icon={LogOut} loading={act.busy === 'so'} disabled={(sessions.data?.length ?? 0) < 2} onClick={() => act.run('so', () => api.auth.signOutOtherSessions(ctx), { title: 'Other sessions signed out' })}>Sign out other sessions</Button>
+        <Button className="mt-3" icon={LogOut} loading={act.busy === 'so'} disabled={IS_DEMO && (sessions.data?.length ?? 0) < 2} onClick={() => act.run('so', () => api.auth.signOutOtherSessions(ctx), { title: 'Other sessions signed out' })}>Sign out other sessions</Button>
       </Section>
     </div>
   );
@@ -75,9 +75,9 @@ export function DataPanel() {
       <Section title="Your data" description="Download everything Tandem holds about your account.">
         <Button icon={Download} onClick={async () => { const data = await api.auth.exportMyData(ctx); const json = JSON.stringify(data, null, 2); if (downloadText('tandem-my-data.json', json, 'application/json')) toast.success('Export started'); else if (await copyText(json)) toast.success('Copied to clipboard', 'Your browser blocked the download.'); }}>Export my data (JSON)</Button>
       </Section>
-      <Section title="Demo data" description="Restore the original sample workspace in this browser.">
+      {IS_DEMO && <Section title="Demo data" description="Restore the original sample workspace in this browser.">
         <Button icon={RotateCcw} onClick={() => setReset(true)}>Reset demo data</Button>
-      </Section>
+      </Section>}
       <Section title="Delete account" description="Removes your account and profile. Agreed collaborations and payment records stay with the other party where they need them.">
         <Button variant="danger" icon={Trash2} onClick={() => setDel(true)}>Delete my account</Button>
       </Section>

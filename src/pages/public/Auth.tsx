@@ -1,6 +1,6 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowRight, Building2, Camera, Users, MailCheck, KeyRound, Eye, EyeOff } from 'lucide-react';
-import { api } from '../../server/api';
+import { api, IS_DEMO } from '../../server/api';
 import { useRouter, Link } from '../../lib/router';
 import { useSession } from '../../app/session';
 import { errorMessage } from '../../app/hooks';
@@ -72,7 +72,15 @@ export function SignIn() {
 
   return (
     <Frame title="Sign in" subtitle={<>New to Tandem? <Link to="/signup" className="link">Create an account</Link></>}
-      aside={
+      aside={!IS_DEMO ? (
+        <div className="flex h-full flex-col p-8">
+          <p className="eyebrow">Tandem</p>
+          <p className="mt-2 text-[15px] font-semibold leading-snug">Brands, agencies and creators in one workspace.</p>
+          <ul className="mt-5 space-y-3 text-[13px] text-ink-600">
+            {['Describe a campaign and get creator matches that explain themselves.', 'Negotiate, approve content and track payments in one place.', 'Creators decide what brands can see about them.'].map((t) => <li key={t} className="flex gap-2"><ArrowRight className="mt-0.5 size-3.5 shrink-0 text-ink-400" />{t}</li>)}
+          </ul>
+        </div>
+      ) : (
         <div className="flex h-full flex-col p-8">
           <p className="eyebrow">Demo accounts</p>
           <p className="mt-1 text-[13px] text-ink-500">One click signs you in. Each account sees a different workspace.</p>
@@ -88,17 +96,18 @@ export function SignIn() {
           </ul>
           <p className="mt-auto pt-6 text-[12px] leading-relaxed text-ink-500">Password for all demo accounts: <code className="font-mono text-ink-800">{DEMO_PASSWORD}</code>. Data lives in this browser only and can be reset from Settings.</p>
         </div>
-      }>
+      )}>
       <form onSubmit={submit} noValidate className="space-y-4">
         {error && <Notice tone="bad">{error}</Notice>}
         <Field label="Email" error={fields.email} htmlFor="email"><Input id="email" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} error={fields.email} /></Field>
         <Field label={<span className="flex justify-between"><span>Password</span><Link to="/forgot" className="link font-normal">Forgot password?</Link></span>} error={fields.password} htmlFor="password"><PasswordInput id="password" value={password} onChange={setPassword} error={fields.password} autoComplete="current-password" /></Field>
         <Button type="submit" variant="dark" className="w-full" size="lg" loading={busy === 'form'}>Sign in</Button>
       </form>
-      <div className="mt-8 lg:hidden">
+      {query.reset && <Notice tone="ok" className="mt-4">Password updated. Sign in with your new password.</Notice>}
+      {IS_DEMO && <div className="mt-8 lg:hidden">
         <p className="eyebrow mb-2">Or use a demo account</p>
         <div className="grid grid-cols-2 gap-2">{DEMO_ACCOUNTS.map((a) => <Button key={a.email} size="sm" onClick={() => go(a.email, DEMO_PASSWORD, a.email)} loading={busy === a.email}>{a.label}</Button>)}</div>
-      </div>
+      </div>}
     </Frame>
   );
 }
@@ -126,7 +135,7 @@ export function SignUp() {
     setBusy(true); setError(null);
     try {
       const r = await api.auth.register({ ...v, kind });
-      navigate(`/verify?email=${encodeURIComponent(v.email)}&demo=${r.demoVerifyToken}`);
+      navigate(`/verify?email=${encodeURIComponent(v.email)}${r.demoVerifyToken ? `&demo=${r.demoVerifyToken}` : ''}`);
     } catch (err) { setError(errorMessage(err)); } finally { setBusy(false); }
   };
   return (
@@ -161,7 +170,9 @@ export function SignUp() {
 
 export function Verify() {
   const { query, navigate } = useRouter();
-  const { setToken } = useSession();
+  const { setToken, me } = useSession();
+  // Live mode: the link in the email signs the user in on load; continue to setup.
+  useEffect(() => { if (!IS_DEMO && me) navigate(me.user.onboarded ? homeFor(me) : '/onboarding', { replace: true }); }, [me, navigate]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const verify = async () => {
@@ -174,8 +185,13 @@ export function Verify() {
       <div className="space-y-4">
         <MailCheck className="size-8 text-ink-400" />
         {error && <Notice tone="bad">{error}</Notice>}
-        <Notice tone="info">Demo mode has no email provider, so no email was sent. Use the button below in place of the link in the email.</Notice>
-        <Button variant="dark" size="lg" className="w-full" loading={busy} onClick={verify}>Open verification link (demo)</Button>
+        {IS_DEMO ? <>
+          <Notice tone="info">Demo mode has no email provider, so no email was sent. Use the button below in place of the link in the email.</Notice>
+          <Button variant="dark" size="lg" className="w-full" loading={busy} onClick={verify}>Open verification link (demo)</Button>
+        </> : <>
+          <p className="text-[13.5px] leading-relaxed text-ink-600">Open the link in that email on this device to confirm your address. It can take a minute to arrive; check your spam folder too.</p>
+          <Button variant="secondary" className="w-full" loading={busy} onClick={verify}>I’ve confirmed — continue</Button>
+        </>}
         <p className="text-[12.5px] text-ink-500">Already verified? <Link to="/signin" className="link">Sign in</Link></p>
       </div>
     </Frame>
@@ -195,14 +211,14 @@ export function Forgot() {
     setBusy(true);
     const r = await api.auth.requestPasswordReset(email);
     setBusy(false);
-    setSent(r.demoResetToken);
+    setSent(r.demoResetToken || 'sent');
   };
   return (
     <Frame title="Reset your password" subtitle="We’ll email you a link to choose a new one.">
       {sent ? (
         <div className="space-y-4">
           <Notice tone="ok">If an account exists for {email}, a reset link is on its way. The link expires in 30 minutes.</Notice>
-          <Notice tone="info">Demo mode: no email is sent. <Link to={`/reset?token=${sent}`} className="link">Open the reset link</Link>.</Notice>
+          {IS_DEMO && <Notice tone="info">Demo mode: no email is sent. <Link to={`/reset?token=${sent}`} className="link">Open the reset link</Link>.</Notice>}
         </div>
       ) : (
         <form onSubmit={submit} noValidate className="space-y-4">
