@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+/* Layout concept: a quiet, document-like workspace. Warm paper surfaces,
+   charcoal ink, one cobalt accent for intent, sage/clay for secondary meaning. */
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Instrument Serif", ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-paper: #faf9f6;
+  --color-surface: #ffffff;
+
+  --color-ink-950: #111115;
+  --color-ink-900: #19191f;
+  --color-ink-800: #28282f;
+  --color-ink-700: #3d3d45;
+  --color-ink-600: #57565f;
+  --color-ink-500: #74737c;
+  --color-ink-400: #9b9aa2;
+  --color-ink-300: #c5c4c9;
+  --color-ink-200: #e3e1dc;
+  --color-ink-150: #ebe9e4;
+  --color-ink-100: #f0eeea;
+  --color-ink-50: #f6f5f1;
+
+  --color-accent-50: #eef0ff;
+  --color-accent-100: #e0e4ff;
+  --color-accent-200: #c5ccff;
+  --color-accent-300: #9ea9fb;
+  --color-accent-400: #7482f3;
+  --color-accent-500: #4f5de6;
+  --color-accent-600: #3b47d1;
+  --color-accent-700: #2f39aa;
+  --color-accent-800: #283088;
+  --color-accent-900: #232a69;
+
+  --color-sage-50: #eef3ef;
+  --color-sage-100: #dce8de;
+  --color-sage-600: #4f6f57;
+  --color-sage-700: #3e5a45;
+  --color-clay-50: #f8eee9;
+  --color-clay-100: #f1dcd2;
+  --color-clay-600: #a3593b;
+  --color-clay-700: #86462d;
+
+  --color-ok-50: #ebf5ef;
+  --color-ok-600: #237047;
+  --color-warn-50: #fbf3e4;
+  --color-warn-600: #9a6512;
+  --color-bad-50: #fbecea;
+  --color-bad-600: #b33a28;
+
+  --shadow-xs: 0 1px 1px rgba(17, 17, 21, 0.04);
+  --shadow-sm: 0 1px 2px rgba(17, 17, 21, 0.05), 0 1px 3px rgba(17, 17, 21, 0.04);
+  --shadow-md: 0 6px 16px -6px rgba(17, 17, 21, 0.12), 0 2px 4px -2px rgba(17, 17, 21, 0.05);
+  --shadow-lg: 0 24px 60px -16px rgba(17, 17, 21, 0.28);
+
+  --animate-in: in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-up: up 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-drawer: drawer 260ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-pop: pop 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  --animate-shimmer: shimmer 1.4s linear infinite;
+
+  @keyframes in { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes up { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+  @keyframes drawer { from { transform: translateX(24px); opacity: 0 } to { transform: none; opacity: 1 } }
+  @keyframes pop { from { opacity: 0; transform: scale(0.97) translateY(-4px) } to { opacity: 1; transform: none } }
+  @keyframes shimmer { from { background-position: -400px 0 } to { background-position: 400px 0 } }
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-paper text-ink-900 font-sans antialiased;
+    font-feature-settings: "ss01", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+  h1, h2, h3 { text-wrap: balance; letter-spacing: -0.015em; }
+  ::selection { background: var(--color-accent-200); }
+  :focus-visible { outline: 2px solid var(--color-accent-500); outline-offset: 2px; border-radius: 6px; }
+  button:not(:disabled), [role="button"], summary { cursor: pointer; }
+  input[type="number"] { font-variant-numeric: tabular-nums; }
+}
+
+@layer components {
+  .panel { @apply bg-surface border border-ink-200 rounded-[14px] shadow-xs; }
+  .panel-pad { @apply p-5; }
+  .input {
+    @apply w-full h-9 rounded-[10px] border border-ink-200 bg-surface px-3 text-[13.5px] text-ink-900 placeholder:text-ink-400
+      transition-[border-color,box-shadow] duration-150 focus:border-accent-400 focus:ring-4 focus:ring-accent-100 focus:outline-none
+      disabled:bg-ink-50 disabled:text-ink-500;
+  }
+  textarea.input { @apply h-auto py-2 leading-relaxed; }
+  select.input { @apply pr-8 appearance-none bg-no-repeat; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2374737c' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-position: right 10px center; }
+  .input-error { @apply border-bad-600/60 focus:border-bad-600 focus:ring-bad-50; }
+  .label { @apply block text-[12px] font-medium text-ink-700 mb-1.5; }
+  .eyebrow { @apply text-[11px] font-medium uppercase tracking-[0.09em] text-ink-500; }
+  .num { font-variant-numeric: tabular-nums; }
+  .skeleton { background: linear-gradient(90deg, var(--color-ink-100) 0, var(--color-ink-50) 40%, var(--color-ink-100) 80%); background-size: 800px 100%; animation: var(--animate-shimmer); @apply rounded-md; }
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: var(--color-ink-200) transparent; }
+  .link { @apply text-accent-600 hover:text-accent-700 underline-offset-2 hover:underline; }
+  .divider { @apply border-t border-ink-150; }
+  .page-enter { animation: var(--animate-up); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; scroll-behavior: auto !important; }
+}
