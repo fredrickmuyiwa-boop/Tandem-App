@@ -4,7 +4,8 @@
 const env = ((import.meta as unknown as { env?: Record<string, string | undefined> }).env) ?? {};
 const forced = (globalThis as { __TANDEM_LIVE__?: boolean }).__TANDEM_LIVE__;
 
-export const SUPABASE_URL = env.VITE_SUPABASE_URL ?? '';
+// Accept common paste mistakes: trailing slash, or the REST endpoint instead of the project URL.
+export const SUPABASE_URL = (env.VITE_SUPABASE_URL ?? '').trim().replace(/\/(rest|auth)\/v1\/?$/, '').replace(/\/+$/, '');
 export const SUPABASE_ANON_KEY = env.VITE_SUPABASE_ANON_KEY ?? '';
 export const LIVE: boolean = forced ?? Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 export const IS_DEMO = !LIVE;

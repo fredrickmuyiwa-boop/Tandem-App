@@ -271,6 +271,34 @@ end $$;
 reset role;
 do $$ begin perform tests.ok(not exists (select 1 from public.notifications where title = 'Phish'), 'strangers can''t be notified'); end $$;
 
+-- ---------- Storage (0004) ----------
+select tests.login('ife');
+do $$ begin
+  insert into storage.objects (bucket_id, name) values ('submissions', 'col1/a1-draft.mp4');
+  perform tests.ok(true, 'creator can upload to own active collaboration');
+  begin insert into storage.objects (bucket_id, name) values ('submissions', 'col3/x-spoof.mp4'); raise exception 'FAILED: upload elsewhere';
+  exception when insufficient_privilege then perform tests.ok(true, 'creator cannot upload into another collaboration'); end;
+  begin insert into storage.objects (bucket_id, name) values ('submissions', 'not-a-collab/x.mp4'); raise exception 'FAILED: upload junk';
+  exception when insufficient_privilege then perform tests.ok(true, 'uploads must belong to a collaboration'); end;
+  begin
+    insert into public.files (id, owner_user_id, org_id, creator_id, name, type, size, storage_path)
+    values ('f_spoof', public.me(), 'org_kora', 'cr_ife', 'x.mp4', 'video/mp4', 10, 'col3/x-spoof.mp4');
+    raise exception 'FAILED: file record';
+  exception when insufficient_privilege then perform tests.ok(true, 'file records can''t point into someone else''s collaboration'); end;
+end $$;
+select tests.login('seun');
+do $$ begin
+  perform tests.ok(not exists (select 1 from storage.objects where name = 'col1/a1-draft.mp4'), 'other creators can''t see the file');
+end $$;
+select tests.login('kemi');
+do $$ begin perform tests.ok(exists (select 1 from storage.objects where name = 'col1/a1-draft.mp4'), 'brand team can view the submission file'); end $$;
+select tests.login('oliver');
+do $$ begin perform tests.ok(not exists (select 1 from storage.objects where name = 'col1/a1-draft.mp4'), 'other brands can''t view the file'); end $$;
+select tests.login('kwame');
+do $$ begin perform tests.ok(not exists (select 1 from storage.objects where name = 'col1/a1-draft.mp4'), 'a client reviewer elsewhere can''t view the file'); end $$;
+reset role;
+do $$ begin perform tests.ok((select public from storage.buckets where id = 'submissions') = false, 'submissions bucket is private'); end $$;
+
 -- ---------- Suspension ----------
 reset role;
 update public.profiles set status = 'suspended' where id = '00000000-0000-0000-0000-0000000000b1';

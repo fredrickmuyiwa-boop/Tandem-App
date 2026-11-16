@@ -10,6 +10,7 @@ import { buildSeed, DEMO_PASSWORD } from '../../src/data/seed';
 import { TABLES, toRow } from '../../src/server/remote/mapping';
 import type { Change, Transport } from '../../src/server/remote/replica';
 import type { AuthProvider } from '../../src/server/remote/liveApi';
+import type { StorageBackend } from '../../src/server/services/storage';
 import { AppError } from '../../src/lib/errors';
 
 const ROOT = process.cwd(); // run from the repo root
@@ -47,6 +48,7 @@ export async function setupDatabase() {
     resolve(ROOT, 'supabase/migrations/0001_init.sql'),
     resolve(ROOT, 'supabase/migrations/0002_app_api.sql'),
     resolve(ROOT, 'supabase/migrations/0003_settings_seed.sql'),
+    resolve(ROOT, 'supabase/migrations/0004_storage.sql'),
   ] });
   // Load the demo dataset (fictional) so the tests exercise realistic data.
   const seed = await buildSeed();
@@ -118,3 +120,22 @@ export const actAs = (userId: string) => { signedIn = userId; };
 /** Run SQL as the database owner (for assertions only). */
 export const sqlAsOwner = (sql: string) => psql(dbUrl(), sql).trim();
 export const readSql = (p: string) => readFileSync(resolve(ROOT, p), 'utf8');
+
+/** Stand-in for Supabase Storage: like the real service, it records the object as the user, so storage policies apply. */
+export const storageBackend: StorageBackend = {
+  async upload(path, file, contentType, onProgress) {
+    if (!signedIn) throw new AppError('unauthenticated', 'Not signed in');
+    try {
+      asUser(signedIn, `insert into storage.objects (bucket_id, name, metadata) values ('submissions', ${lit(path)}, ${lit(JSON.stringify({ mimetype: contentType, size: file.size }))}::jsonb);`);
+    } catch (e) {
+      throw new AppError('forbidden', `Upload refused: ${(e as Error).message}`);
+    }
+    onProgress(file.size);
+  },
+  async signedUrl(path) {
+    if (!signedIn) throw new AppError('unauthenticated', 'Not signed in');
+    const ok = asUser(signedIn, `select count(*) from storage.objects where bucket_id = 'submissions' and name = ${lit(path)};`).trim().split('\n').pop();
+    if (ok !== '1') throw new AppError('forbidden', 'This file isn’t available to you.');
+    return `https://storage.test/signed/${encodeURIComponent(path)}?token=t`;
+  },
+};

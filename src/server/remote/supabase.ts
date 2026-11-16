@@ -6,6 +6,7 @@ import { SESSION_KEY, SUPABASE_ANON_KEY, SUPABASE_URL } from '../mode';
 import { clearLive, ensureReady, loadUser, startAutoRefresh, startLive } from './live';
 import { setAuthProvider, type AuthProvider } from './liveApi';
 import { tokenFor, type Change, type Transport } from './replica';
+import { setStorageBackend, type StorageBackend } from '../services/storage';
 
 const writeToken = (t: string | null) => { try { if (t) localStorage.setItem(SESSION_KEY, t); else localStorage.removeItem(SESSION_KEY); } catch { /* blocked */ } };
 
@@ -70,12 +71,53 @@ function provider(client: SupabaseClient): AuthProvider {
   };
 }
 
+const BUCKET = 'submissions';
+
+function storageBackend(client: SupabaseClient): StorageBackend {
+  return {
+    // Direct upload to the Storage REST endpoint so we can report progress (no extra dependency).
+    async upload(path, file, contentType, onProgress) {
+      const { data } = await client.auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) throw new AppError('unauthenticated', 'Your session has ended. Sign in again.');
+      const url = `${SUPABASE_URL}/storage/v1/object/${BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`;
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url);
+        xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+        xhr.setRequestHeader('authorization', `Bearer ${token}`);
+        xhr.setRequestHeader('content-type', contentType);
+        xhr.setRequestHeader('x-upsert', 'false');
+        xhr.setRequestHeader('cache-control', 'max-age=3600');
+        xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded); };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) return resolve();
+          let msg = '';
+          try { msg = JSON.parse(xhr.responseText)?.message ?? ''; } catch { /* not JSON */ }
+          if (xhr.status === 413 || /exceeded|too large|maximum/i.test(msg)) return reject(new AppError('validation', 'That file is larger than this workspace allows (50 MB on the current Supabase plan).'));
+          if (xhr.status === 401 || xhr.status === 403 || /row-level security|unauthorized/i.test(msg)) return reject(new AppError('forbidden', 'You can only upload to your own active collaborations.'));
+          if (/mime|type/i.test(msg)) return reject(new AppError('validation', 'That file type isn’t allowed. Use JPG, PNG, WebP, MP4, MOV, WebM or PDF.'));
+          reject(new AppError('network', msg || 'Upload failed. Try again.'));
+        };
+        xhr.onerror = () => reject(new AppError('network', 'Upload failed. Check your connection and try again.'));
+        xhr.send(file);
+      });
+    },
+    async signedUrl(path, expiresIn) {
+      const { data, error } = await client.storage.from(BUCKET).createSignedUrl(path, expiresIn);
+      if (error || !data?.signedUrl) throw new AppError('forbidden', 'This file isn’t available to you.');
+      return data.signedUrl;
+    },
+  };
+}
+
 export async function initLive(): Promise<'restored'> {
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { flowType: 'pkce', persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
   setAuthProvider(provider(client));
   startLive(transport(client));
+  setStorageBackend(storageBackend(client));
   ensureReady();
   // Email links come back with ?code=… which supabase-js exchanges for a session here.
   const { data } = await client.auth.getSession();

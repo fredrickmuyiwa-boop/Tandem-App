@@ -12,6 +12,7 @@ This report says what works, how it was checked, and what's still missing. "Impl
 - Notifications are delivered by the database. The browser asks for "the brand's team" or "this creator", and the database resolves that, checks the relationship, and applies the recipient's preferences.
 - Team invites redeem automatically when the invited person signs up. Inviting an existing user adds them straight away.
 - Self-service account deletion. Plans can't be self-upgraded until billing is connected.
+- **Content uploads to Supabase Storage.** Creators upload drafts (video, images, PDF, up to 50 MB each on the Free plan) with a progress bar. Files go to a private bucket under their collaboration, and storage rules decide who can upload and view them. Brands preview images and play video inline through one-hour signed links. Submitted files can't be replaced or deleted.
 - Setup is one SQL file (`supabase/setup.sql`) plus two environment variables. Optional fictional sample creators come in `supabase/seed/sample_creators.sql`.
 
 **Accounts and access**
@@ -57,9 +58,9 @@ This report says what works, how it was checked, and what's still missing. "Impl
 |---|---|---|
 | Type safety | `tsc --noEmit`, strict, for the app, tests, `api/` and the Node-side live tests/scripts | 0 errors |
 | Backend logic | 35 tests: auth (9), permissions (8), workflow (4, including the full brand → match → invite → counter → collaborate → submit → revise → approve → pay → results loop and the agency/client path), AI (9) and security (5) | 35/35 pass |
-| Database RLS and API | `supabase/tests/rls_test.sql` on Postgres 16 (tenant isolation, roles, agency/client scope, creator privacy, budgets hidden from creators, integrity rules, suspension, admin, snapshot/apply functions) | 68/68 assertions pass |
-| Live mode, services | `tests/live/workflow.live.ts`: the real services against Postgres with the migrations, acting as each user the way Supabase does (role `authenticated` + JWT claims). Covers both negotiation paths end to end, 13 kinds of forged write made directly against the API, rollback on refusal, onboarding a new brand and creator, and account deletion | 7/7 pass |
-| Live mode, UI | Playwright on a Live-mode build, every route for all five roles, plus the full brief → invite → counter → accept → submit → approve → pay workflow and a new brand signing up and onboarding. Each step was then checked in the database | All pass; no app console errors |
+| Database RLS and API | `supabase/tests/rls_test.sql` on Postgres 16 (tenant isolation, roles, agency/client scope, creator privacy, budgets hidden from creators, integrity rules, suspension, admin, snapshot/apply functions) | 77/77 assertions pass (incl. storage bucket rules) |
+| Live mode, services | `tests/live/workflow.live.ts`: the real services against Postgres with the migrations, acting as each user the way Supabase does (role `authenticated` + JWT claims). Covers both negotiation paths end to end, 13 kinds of forged write made directly against the API, rollback on refusal, onboarding a new brand and creator, account deletion, and uploading to storage (allowed for your own collaboration, refused for anyone else's, and only viewable by that brand) | 8/8 pass |
+| Live mode, UI | Playwright on a Live-mode build, every route for all five roles, plus the full brief → invite → counter → accept → submit (with a real MP4 upload) → brand plays the video → approve → pay workflow, and a new brand signing up and onboarding. Each step was then checked in the database | All pass; no app console errors |
 | UI, every route | Playwright signed in as brand, agency, client reviewer, creator and admin; 41 signed-in routes plus 7 public pages | All render; no app console errors |
 | UI, full workflow | Playwright: brief → AI match → create & publish campaign → invite → creator counteroffer → brand accepts → creator submits → brand approves → payment recorded as paid | Passes |
 | Access in the UI | Creator opening `/app` or `/admin`; client reviewer opening budget, team or discover; member opening `/admin` | Redirected or shown "not available to your role" |
@@ -79,7 +80,7 @@ This report says what works, how it was checked, and what's still missing. "Impl
 - **No email beyond Supabase Auth.** Account confirmation and password reset emails come from Supabase. Notification and team-invite emails are recorded as "queued" and not sent. Use your own SMTP provider in Supabase before inviting real users, because the built-in sender is heavily rate-limited.
 - **Plan changes** are made by an admin in the database until billing is connected.
 - **No social platform connections.** There's no Instagram, TikTok or YouTube OAuth or insights import, so no figure in the app is "verified" by a platform. The schema allows only trusted server code to set that label.
-- **File storage.** Images up to 1 MB are stored in the database so they can be previewed; other files keep only their name and size, so creators share video by link. Larger uploads need a private Supabase Storage bucket.
+- **File storage in Demo mode** keeps only small images (up to 1 MB) for preview; other files keep only their name and size. Live mode uploads everything to Supabase Storage. Uploads that are abandoned after the file is sent but before the submission saves (for example, when the connection drops) are left in the bucket; a clean-up job isn't built yet.
 - **No billing provider.** In Demo mode, changing plan takes effect immediately and charges nothing. In Live mode, plan changes are refused with "contact us".
 - **The Meta provider wasn't exercised live**, because there was no API key. It follows the published API, and the fallback is tested.
 - **Outreach drafting is template-based (local)** even when the Meta provider is on. A model-written draft could be added through `/api/meta/assist`.

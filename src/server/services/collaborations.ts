@@ -11,8 +11,8 @@ import { logActivity, toCreatorView } from './campaigns';
 import { creatorUser, notify, orgRecipients } from '../notify';
 import { toView, validateUpload } from './creators';
 
-type FileView = Pick<StoredFile, 'id' | 'name' | 'type' | 'size'> & { previewUrl?: string };
-const fileView = (f: StoredFile): FileView => ({ id: f.id, name: f.name, type: f.type, size: f.size, previewUrl: f.dataUrl });
+type FileView = Pick<StoredFile, 'id' | 'name' | 'type' | 'size' | 'storagePath'> & { previewUrl?: string };
+const fileView = (f: StoredFile): FileView => ({ id: f.id, name: f.name, type: f.type, size: f.size, previewUrl: f.dataUrl, storagePath: f.storagePath });
 
 function bundle(d: Database, collabId: string) {
   const collab = d.collaborations.find((k) => k.id === collabId)!;
@@ -92,7 +92,7 @@ export async function approvalQueue(ctx: Ctx, orgId: string) {
     .sort((a, b) => a.submission.submittedAt.localeCompare(b.submission.submittedAt));
 }
 
-export interface UploadInput { name: string; type: string; size: number; dataUrl?: string }
+export interface UploadInput { name: string; type: string; size: number; dataUrl?: string; storagePath?: string }
 
 export async function submitContent(ctx: Ctx, deliverableId: string, input: { caption: string; links: string[]; note: string; files: UploadInput[] }) {
   await latency();
@@ -112,7 +112,8 @@ export async function submitContent(ctx: Ctx, deliverableId: string, input: { ca
   const campaign = d.campaigns.find((c) => c.id === collab.campaignId)!;
   return mutate((db) => {
     const fileIds = input.files.map((f) => {
-      const rec: StoredFile = { id: uid('file'), ownerUserId: user.id, orgId: collab.orgId, creatorId: creator.id, name: f.name.slice(0, 120), type: f.type, size: f.size, dataUrl: f.type.startsWith('image/') && f.size <= INLINE_IMAGE_LIMIT && f.dataUrl?.startsWith('data:image/') ? f.dataUrl : undefined, visibility: 'private', createdAt: nowIso() };
+      const storagePath = f.storagePath && f.storagePath.startsWith(`${collab.id}/`) ? f.storagePath : undefined;
+      const rec: StoredFile = { id: uid('file'), ownerUserId: user.id, orgId: collab.orgId, creatorId: creator.id, name: f.name.slice(0, 120), type: f.type, size: f.size, dataUrl: !storagePath && f.type.startsWith('image/') && f.size <= INLINE_IMAGE_LIMIT && f.dataUrl?.startsWith('data:image/') ? f.dataUrl : undefined, storagePath, visibility: 'private', createdAt: nowIso() };
       db.files.push(rec);
       return rec.id;
     });

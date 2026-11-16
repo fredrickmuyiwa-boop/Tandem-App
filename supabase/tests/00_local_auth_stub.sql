@@ -20,3 +20,17 @@ create or replace function auth.uid() returns uuid language sql stable as $$
 $$;
 grant usage on schema auth to anon, authenticated;
 grant execute on function auth.uid() to anon, authenticated;
+
+-- Minimal stand-in for Supabase Storage's tables (Supabase provides the real ones).
+create schema if not exists storage;
+create table if not exists storage.buckets (
+  id text primary key, name text not null, public boolean default false,
+  file_size_limit bigint, allowed_mime_types text[], created_at timestamptz default now());
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(), bucket_id text references storage.buckets (id),
+  name text not null, owner uuid default auth.uid(), owner_id text default auth.uid()::text,
+  metadata jsonb, created_at timestamptz default now(), unique (bucket_id, name));
+alter table storage.objects enable row level security;
+grant usage on schema storage to authenticated;
+grant select, insert on storage.objects to authenticated;
+grant select on storage.buckets to authenticated;

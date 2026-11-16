@@ -15,12 +15,15 @@ import * as notifications from './services/notifications';
 import * as admin from './services/admin';
 import * as ai from './services/ai';
 import * as dashboard from './services/dashboard';
+import { signedUrl, storageConnected, uploadSubmissionFiles } from './services/storage';
+
+const storage = { uploadSubmissionFiles, signedUrl, storageConnected };
 import { buildSeed } from '../data/seed';
 import { clearPersisted, isReady, loadPersisted, setDb, flush } from './db';
 import { LIVE, IS_DEMO } from './mode';
 import { liveApi } from './remote/liveApi';
 
-const services = { auth, orgs, creators, campaigns, deals, collaborations, money, analytics, crm, notifications, admin, ai, dashboard };
+const services = { auth, orgs, creators, campaigns, deals, collaborations, money, analytics, crm, notifications, admin, ai, dashboard, storage };
 
 /** Demo mode: the services above on an in-browser database. Live mode: the same services on a Supabase replica. */
 export const api: typeof services = LIVE ? liveApi(services) : services;

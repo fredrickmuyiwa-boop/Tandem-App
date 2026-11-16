@@ -336,8 +336,10 @@ export interface StoredFile {
   name: string;
   type: string;
   size: number;
-  /** Demo only: images ≤ 1 MB are kept inline. Production uses Supabase Storage signed URLs. */
+  /** Small images (≤ 1 MB) kept inline for preview when no storage is connected. */
   dataUrl?: string;
+  /** Live mode: object path in the private `submissions` bucket (served via signed URLs). */
+  storagePath?: string;
   visibility: 'private' | 'public';
   createdAt: ISODate;
 }

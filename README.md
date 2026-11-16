@@ -33,7 +33,7 @@ All creators, brands, results and payments in the demo are **fictional sample da
 | `npm run build` | Build to `dist/` |
 | `npm run typecheck` | `tsc --noEmit` (strict) for the app, `api/`, and the Node-side tests and scripts |
 | `npm test` | Vitest: auth, permissions, the end-to-end workflow, AI and security (35 tests) |
-| `npm run test:live` | The real services in Live mode against Postgres with the Supabase migrations (7 scenarios); needs `psql` and `LIVE_TEST_DATABASE_URL` |
+| `npm run test:live` | The real services in Live mode against Postgres with the Supabase migrations (8 scenarios); needs `psql` and `LIVE_TEST_DATABASE_URL` |
 | `npm run check` | Type-check, then test |
 
 Database security tests (needs `psql` and a Postgres 15+ database):
@@ -42,7 +42,7 @@ Database security tests (needs `psql` and a Postgres 15+ database):
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f supabase/tests/00_local_auth_stub.sql \
   -f supabase/setup.sql \
-  -f supabase/tests/rls_test.sql      # → "RLS tests passed: 68"
+  -f supabase/tests/rls_test.sql      # → "RLS tests passed: 77"
 ```
 
 ## Stack
@@ -58,7 +58,7 @@ src/
   pages/       public · org (brand/agency) · creator · admin
   components/  ui primitives, charts, app components
 api/meta/      serverless functions → Meta Model API (server-side key)
-supabase/      setup.sql (= migrations/0001–0003), optional sample creators, SQL tests
+supabase/      setup.sql (= migrations/0001–0004), optional sample creators, SQL tests
 tests/         Vitest suites; tests/live/ runs the services against Postgres
 docs/          architecture, security, Meta AI, Supabase, development report
 ```

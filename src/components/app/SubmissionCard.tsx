@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Check, RotateCcw, X, MessageSquare, ExternalLink, FileText, Film } from 'lucide-react';
 import type { Review, Submission } from '../../domain/types';
 import { cx, formatDateTime } from '../../lib/utils';
 import Button from '../ui/Button';
 import { Pill } from '../ui/Badge';
 import { Textarea } from '../ui/Field';
+import { api } from '../../server/api';
+import { useSession } from '../../app/session';
 
-type Sub = Submission & { files: { id: string; name: string; type: string; size: number; previewUrl?: string }[] };
+type Sub = Submission & { files: { id: string; name: string; type: string; size: number; previewUrl?: string; storagePath?: string }[] };
 const STATUS: Record<Submission['status'], { label: string; tone: 'neutral' | 'accent' | 'success' | 'warning' | 'danger' }> = {
   in_review: { label: 'In review', tone: 'accent' }, awaiting_client: { label: 'Awaiting client', tone: 'warning' }, approved: { label: 'Approved', tone: 'success' }, revision_requested: { label: 'Revision requested', tone: 'warning' }, rejected: { label: 'Rejected', tone: 'danger' },
 };
@@ -25,7 +27,7 @@ export default function SubmissionCard({ s, latest, canReview, revisionsLeft, on
       {s.caption && <p className="mt-3 whitespace-pre-wrap rounded-[10px] bg-ink-50 p-3 text-[13px] leading-relaxed text-ink-800">{s.caption}</p>}
       {(s.files.length > 0 || s.links.length > 0) && (
         <div className="mt-3 flex flex-wrap gap-2">
-          {s.files.map((f) => f.previewUrl ? <a key={f.id} href={f.previewUrl} target="_blank" rel="noreferrer" className="block"><img src={f.previewUrl} alt={f.name} className="size-20 rounded-[10px] border border-ink-200 object-cover" /></a> : <span key={f.id} className="inline-flex items-center gap-1.5 rounded-[9px] border border-ink-200 px-2.5 py-1.5 text-[12px]">{f.type.startsWith('video') ? <Film className="size-3.5" /> : <FileText className="size-3.5" />}{f.name}</span>)}
+          {s.files.map((f) => f.storagePath ? <StoredFileView key={f.id} file={f as StoredRef} /> : f.previewUrl ? <a key={f.id} href={f.previewUrl} target="_blank" rel="noreferrer" className="block"><img src={f.previewUrl} alt={f.name} className="size-20 rounded-[10px] border border-ink-200 object-cover" /></a> : <span key={f.id} className="inline-flex items-center gap-1.5 rounded-[9px] border border-ink-200 px-2.5 py-1.5 text-[12px]">{f.type.startsWith('video') ? <Film className="size-3.5" /> : <FileText className="size-3.5" />}{f.name}</span>)}
           {s.links.map((l) => <a key={l} href={l} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 rounded-[9px] border border-ink-200 px-2.5 py-1.5 text-[12px] text-accent-700 hover:bg-accent-50">{new URL(l).hostname}<ExternalLink className="size-3" /></a>)}
         </div>
       )}
@@ -49,4 +51,29 @@ export default function SubmissionCard({ s, latest, canReview, revisionsLeft, on
       )}
     </div>
   );
+}
+
+type StoredRef = { id: string; name: string; type: string; size: number; storagePath: string };
+
+/** A file in private storage: fetches a one-hour signed link, then previews or plays it. */
+function StoredFileView({ file }: { file: StoredRef }) {
+  const { ctx } = useSession();
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [play, setPlay] = useState(false);
+  useEffect(() => {
+    let live = true;
+    api.storage.signedUrl(ctx, file.storagePath).then((u) => { if (live) setUrl(u); }, () => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [ctx, file.storagePath]);
+  const chip = (body: ReactNode) => <span className="inline-flex items-center gap-1.5 rounded-[9px] border border-ink-200 px-2.5 py-1.5 text-[12px]">{body}</span>;
+  if (failed) return chip(<><FileText className="size-3.5" />{file.name} · not available</>);
+  if (!url) return chip(<><span className="skeleton size-3.5 rounded" />{file.name}</>);
+  if (file.type.startsWith('image/')) return <a href={url} target="_blank" rel="noreferrer" className="block"><img src={url} alt={file.name} className="size-20 rounded-[10px] border border-ink-200 object-cover" /></a>;
+  if (file.type.startsWith('video/')) {
+    return play
+      ? <video src={url} controls autoPlay playsInline className="max-h-72 w-full max-w-md rounded-[10px] border border-ink-200 bg-black" aria-label={file.name} />
+      : <button type="button" onClick={() => setPlay(true)} className="inline-flex items-center gap-1.5 rounded-[9px] border border-ink-200 px-2.5 py-1.5 text-[12px] hover:bg-ink-50"><Film className="size-3.5" />Play {file.name}</button>;
+  }
+  return <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-[9px] border border-ink-200 px-2.5 py-1.5 text-[12px] text-accent-700 hover:bg-accent-50"><FileText className="size-3.5" />{file.name}<ExternalLink className="size-3" /></a>;
 }

@@ -9,7 +9,8 @@ import { setAuthProvider } from '../../src/server/remote/liveApi';
 import { DEMO_PASSWORD } from '../../src/data/seed';
 import { AppError } from '../../src/server/errors';
 import type { Terms } from '../../src/domain/types';
-import { authProvider, idMap, setupDatabase, sqlAsOwner, transport, actAs, PgError } from './harness';
+import { authProvider, idMap, setupDatabase, sqlAsOwner, storageBackend, transport, actAs, PgError } from './harness';
+import { setStorageBackend } from '../../src/server/services/storage';
 
 const future = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 const login = async (email: string) => ({ token: (await api.auth.signIn({ email, password: DEMO_PASSWORD })).token });
@@ -30,6 +31,7 @@ describe('live mode (Supabase schema, RLS, replica sync)', () => {
     await setupDatabase();
     setAuthProvider(authProvider);
     startLive(transport);
+    setStorageBackend(storageBackend);
   });
 
   it('signs in and sees only what RLS allows', async () => {
@@ -212,6 +214,34 @@ describe('live mode (Supabase schema, RLS, replica sync)', () => {
     expect(one(`select sample::text || identity_verification from creator_profiles where id = '${profile.id}'`)).toBe('falseunverified');
     // A creator account can't create a brand workspace.
     expect(await errorCode(api.orgs.onboardOrganization(tolu, { name: 'Sneaky', country: 'Nigeria' }))).toBe('forbidden');
+  });
+
+  it('uploads draft video to storage and shares it only with the brand', async () => {
+    // The collaboration agreed in the application-path scenario above.
+    const ada = await login('brand@tandem.demo');
+    const collabId = one(`select id from collaborations where campaign_id = 'cmp_harmattan' and creator_id = 'cr_ife' and status = 'active' limit 1`);
+    const ife = await login('creator@tandem.demo');
+    const del = (await api.collaborations.creatorCollaboration(ife, collabId)).deliverables.find((d) => ['not_started', 'revision_requested'].includes(d.status))!;
+    const video = new Blob([new Uint8Array(2048)], { type: 'video/mp4' });
+    const progress: number[] = [];
+    const uploaded = await api.storage.uploadSubmissionFiles(ife, collabId, [{ name: 'Glow Reel draft (v1).mp4', type: 'video/mp4', size: video.size, file: video }], (f) => progress.push(f));
+    expect(uploaded[0].storagePath).toMatch(new RegExp(`^${collabId}/[a-z0-9]+-Glow Reel draft \\(v1\\)\\.mp4$`));
+    expect(progress.at(-1)).toBe(1);
+    await api.collaborations.submitContent(ife, del.id, { caption: 'Draft for review #ad', links: [], note: '', files: uploaded });
+    const path = uploaded[0].storagePath!;
+    expect(one(`select storage_path from files where storage_path = ${"'"}${path}${"'"}`)).toBe(path);
+    // The brand can open it…
+    await login('brand@tandem.demo');
+    const view = await api.collaborations.orgCollaboration(ada, 'org_lumi', collabId);
+    const file = view.submissions.flatMap((x) => x.files).find((f) => f.storagePath === path)!;
+    expect(await api.storage.signedUrl(ada, file.storagePath!)).toContain('signed');
+    // …another brand can't, and a creator can't upload into someone else's collaboration.
+    const oliver = await login('sable@tandem.demo');
+    expect(await errorCode(api.storage.signedUrl(oliver, path))).toBe('forbidden');
+    const otherCollab = one(`select id from collaborations where creator_id <> 'cr_ife' and status = 'active' limit 1`);
+    const ife2 = await login('creator@tandem.demo');
+    getDb().collaborations.push({ ...getDb().collaborations[0], id: otherCollab, status: 'active' }); // pretend the app thinks it's ours
+    expect(await errorCode(api.storage.uploadSubmissionFiles(ife2, otherCollab, [{ name: 'x.mp4', type: 'video/mp4', size: 10, file: new Blob([new Uint8Array(10)]) }]))).toBe('forbidden');
   });
 
   it('deletes an account', async () => {

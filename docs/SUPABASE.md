@@ -17,6 +17,8 @@ Tandem runs in one of two modes:
 2. Open `supabase/setup.sql` from this repo, copy **all** of it, paste it in, and click **Run**. It should finish with "Success. No rows returned".
 3. *Optional:* to try discovery and matching before real creators join, run `supabase/seed/sample_creators.sql` the same way. It adds 46 **fictional** creator profiles. Each one is flagged `sample` and labelled "Sample" in the app, and none can receive invitations. You can remove them later with `delete from public.creator_profiles where sample and user_id is null;`
 
+**Already set up before uploads existed?** Run `supabase/migrations/0004_storage.sql` once the same way. It adds the private `submissions` storage bucket and its access rules. New projects get it as part of `setup.sql`.
+
 ### 2. Configure sign-in
 
 In **Authentication → URL Configuration**:
@@ -82,11 +84,11 @@ apply_changes([...])  ──────────────────▶ 
 ## Testing
 
 ```bash
-# Row Level Security and API checks (68 assertions), plain SQL
+# Row Level Security, API and storage checks (77 assertions), plain SQL
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f supabase/tests/00_local_auth_stub.sql \
   -f supabase/setup.sql -f supabase/tests/rls_test.sql
 
-# The app's real services in Live mode against Postgres (7 scenarios, including forged writes)
+# The app's real services in Live mode against Postgres (8 scenarios, including forged writes and uploads)
 LIVE_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres npm run test:live
 ```
 
@@ -96,6 +98,6 @@ LIVE_TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/postgres np
 
 - **Scale:** each user loads everything they're allowed to see when they sign in. That's fine for pilots and small teams (thousands of rows). Before large organisations or a big creator directory, move the heaviest lists (discovery, audit log, notifications) to paged queries.
 - **Two people editing the same record at once:** the last save wins, per field. Critical steps (accepting offers, one open offer per conversation, one submission in review at a time) are protected by database constraints.
-- **Files:** images up to 1 MB are stored in the database so they can be previewed. Larger media should go to a private Supabase Storage bucket. Until that's added, creators share video by link.
+- **Files:** creators' drafts (video, images, PDF) are uploaded to the private `submissions` bucket, stored under their collaboration. Only that creator can upload, and only they, the brand's team (including its client reviewers) and admins can open the files, through links that expire after an hour. Submitted files can't be replaced or deleted. The limit is 50 MB per file on Supabase's Free plan, and Free projects include 1 GB of storage in total. On Pro, raise the bucket's limit under **Storage → submissions → Edit bucket**. Profile photos and portfolio images (up to 1 MB) are still stored in the database.
 - **Not connected yet:** emails beyond Supabase Auth's own (invite and notification emails stay in-app), billing (plan changes go through an admin), Meta AI (needs `META_MODEL_API_KEY`), and social platform connections.
 - **Changing an existing database:** `setup.sql` is for a new, empty project. Later changes should be added as new numbered files in `supabase/migrations/`.

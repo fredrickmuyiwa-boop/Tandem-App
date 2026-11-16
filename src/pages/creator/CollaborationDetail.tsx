@@ -29,6 +29,7 @@ export default function CollaborationDetail({ params }: { params: Record<string,
   const [links, setLinks] = useState('');
   const [note, setNote] = useState('');
   const [files, setFiles] = useState<PickedFile[]>([]);
+  const [progress, setProgress] = useState<number | null>(null);
   if (q.error) return <EmptyState title="Collaboration not found" action={<Button onClick={() => navigate('/creator/collaborations')}>Back</Button>} />;
   if (!q.data) return <PageSkeleton />;
   const { collab, deliverables, submissions, payments, messages, campaignView: c, orgName, creatorId } = q.data;
@@ -36,7 +37,13 @@ export default function CollaborationDetail({ params }: { params: Record<string,
   const close = () => { setTarget(null); setCaption(''); setLinks(''); setNote(''); setFiles([]); };
   const submit = async () => {
     if (!target) return;
-    const r = await act.run('sub', () => api.collaborations.submitContent(ctx, target, { caption, links: links.split(/\s+/).filter(Boolean), note, files }), { title: 'Submitted for review', body: `${orgName} has been notified.` });
+    const r = await act.run('sub', async () => {
+      try {
+        // Files go to secure storage first (Live mode), then the submission records them.
+        const uploaded = files.length ? await api.storage.uploadSubmissionFiles(ctx, collab.id, files, (f) => setProgress(f)) : [];
+        return await api.collaborations.submitContent(ctx, target, { caption, links: links.split(/\s+/).filter(Boolean), note, files: uploaded });
+      } finally { setProgress(null); }
+    }, { title: 'Submitted for review', body: `${orgName} has been notified.` });
     if (r) close();
   };
   const targetDel = deliverables.find((d) => d.id === target);
@@ -70,10 +77,11 @@ export default function CollaborationDetail({ params }: { params: Record<string,
           </Section>
         </aside>
       </div>
-      <Modal open={!!target} onClose={close} size="lg" title={`Submit: ${targetDel?.title ?? ''}`} description="Upload drafts or link to them. The brand reviews before anything is published." footer={<><Button onClick={close}>Cancel</Button><Button variant="dark" loading={act.busy === 'sub'} onClick={submit}>Submit for review</Button></>}>
+      <Modal open={!!target} onClose={close} size="lg" title={`Submit: ${targetDel?.title ?? ''}`} description="Upload drafts or link to them. The brand reviews before anything is published." footer={<><Button onClick={close}>Cancel</Button><Button variant="dark" loading={act.busy === 'sub'} onClick={submit}>{progress !== null ? `Uploading ${Math.round(progress * 100)}%` : 'Submit for review'}</Button></>}>
         <div className="space-y-4">
           <Field label="Caption / script" error={act.fields.caption}><Textarea value={caption} onChange={(e) => setCaption(e.target.value)} maxLength={4000} error={act.fields.caption} /></Field>
-          <Field label="Files" hint="Images up to 1 MB are previewed. For video, add a link (for example an unlisted upload) below." error={act.fields.files}><FileDrop files={files} onChange={setFiles} onError={(m) => toast.error('File not added', m)} /></Field>
+          <Field label="Files" hint={api.storage.storageConnected() ? 'Video, images or PDF, up to 50 MB each. Only you and the brand’s team can open them.' : 'Images up to 1 MB are previewed. For video, add a link (for example an unlisted upload) below.'} error={act.fields.files}><FileDrop files={files} onChange={setFiles} onError={(m) => toast.error('File not added', m)} /></Field>
+          {progress !== null && <div className="h-1.5 overflow-hidden rounded-full bg-ink-100" role="progressbar" aria-label="Upload progress" aria-valuenow={Math.round(progress * 100)} aria-valuemin={0} aria-valuemax={100}><div className="h-full rounded-full bg-accent-500 transition-[width] duration-200" style={{ width: `${Math.round(progress * 100)}%` }} /></div>}
           <Field label="Links (optional)" hint="Space-separated https links, e.g. an unlisted video or a drive folder." error={act.fields.links}><Input value={links} onChange={(e) => setLinks(e.target.value)} error={act.fields.links} /></Field>
           <Field label="Note to reviewer (optional)"><Textarea value={note} onChange={(e) => setNote(e.target.value)} className="min-h-[60px]" /></Field>
         </div>

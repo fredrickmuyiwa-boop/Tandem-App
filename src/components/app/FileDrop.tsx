@@ -2,8 +2,10 @@ import { useRef, useState } from 'react';
 import { Upload, X, FileText, Film } from 'lucide-react';
 import { INLINE_IMAGE_LIMIT, UPLOAD_TYPES } from '../../domain/constants';
 import { cx } from '../../lib/utils';
+import { api } from '../../server/api';
 
-export interface PickedFile { name: string; type: string; size: number; dataUrl?: string }
+/** `file` is kept so it can be uploaded to storage at submit time (Live mode). */
+export interface PickedFile { name: string; type: string; size: number; dataUrl?: string; file?: File }
 
 const readAsDataUrl = (f: File) => new Promise<string>((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.onerror = () => rej(r.error); r.readAsDataURL(f); });
 const fmtSize = (n: number) => (n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.ceil(n / 1024)} KB`);
@@ -19,7 +21,7 @@ export default function FileDrop({ files, onChange, maxFiles = 6, maxMb = 50, ac
       if (!accept.includes(f.type)) { onError(`“${f.name}” isn’t an allowed file type.`); continue; }
       if (f.size > maxMb * 1048576) { onError(`“${f.name}” is larger than ${maxMb} MB.`); continue; }
       const dataUrl = f.type.startsWith('image/') && f.size <= INLINE_IMAGE_LIMIT ? await readAsDataUrl(f) : undefined;
-      next.push({ name: f.name, type: f.type, size: f.size, dataUrl });
+      next.push({ name: f.name, type: f.type, size: f.size, dataUrl, file: f });
     }
     onChange(next);
   };
@@ -41,7 +43,7 @@ export default function FileDrop({ files, onChange, maxFiles = 6, maxMb = 50, ac
           {files.map((f, i) => (
             <li key={i} className="flex items-center gap-2.5 rounded-[10px] border border-ink-200 bg-surface p-2">
               {f.dataUrl ? <img src={f.dataUrl} alt="" className="size-9 rounded-md object-cover" /> : <span className="grid size-9 place-items-center rounded-md bg-ink-100 text-ink-500">{f.type.startsWith('video') ? <Film className="size-4" /> : <FileText className="size-4" />}</span>}
-              <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium">{f.name}</span><span className="text-[11.5px] text-ink-500">{fmtSize(f.size)}{!f.dataUrl && !f.type.startsWith('image') ? ' · preview stored in production storage' : ''}</span></span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-[12.5px] font-medium">{f.name}</span><span className="text-[11.5px] text-ink-500">{fmtSize(f.size)}{api.storage.storageConnected() ? ' · uploads when you submit' : !f.dataUrl ? ' · name and size only in Demo mode' : ''}</span></span>
               <button type="button" onClick={() => onChange(files.filter((_, j) => j !== i))} className="rounded p-1 text-ink-400 hover:bg-ink-100 hover:text-ink-700" aria-label={`Remove ${f.name}`}><X className="size-4" /></button>
             </li>
           ))}
